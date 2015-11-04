@@ -1,0 +1,300 @@
+#!/usr/bin/env bash
+
+# ##################################################
+# My developement BASH script template
+#
+VERSION='0.0.1-alpha'               # Sets version variable
+#
+BASH_SCRIPT_FOUNDATION_VERSION="1.0.0" # Version of scriptTemplate.sh that this script is based on
+#
+# HISTORY:
+#
+# * DATE - v0.0.1-alpha  - Project Initialization
+#
+# ##################################################
+
+# Variable with the location of this script.
+# ##################################################
+if [[ -L "${BASH_SOURCE[0]}" ]]; then
+	declare -r SCRIPT_PATH="$( dirname "$( readlink -f "${BASH_SOURCE[0]}" )" )"
+else
+	declare -r SCRIPT_PATH="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+fi
+
+# Add local bin to PATH if exists
+# ##################################################
+declare -r BIN_PATH="${SCRIPT_PATH}/bin"
+if [ -d "${BIN_PATH}" ]; then
+	PATH="$PATH:${BIN_PATH}"
+fi
+
+# Source Scripting Core
+# ##################################################
+# The core provides many functions which are needed 
+# to provide the functionality of the Bash Script
+# Foundation. This script will fail if they can
+# not be found.
+# ##################################################
+
+declare -r CORE_FILE="${SCRIPT_PATH}/lib/core.sh" # Update this path to find the utilities.
+
+if [ -f "${CORE_FILE}" ]; then
+	source "${CORE_FILE}"
+else
+	echo "Please find the file core.sh and add a reference to it in this script. Exiting."
+	exit 1
+fi
+
+# Trap Cleanup
+# ##################################################
+# Any actions that should be taken if the script is 
+# prematurely exited.  Always call this function at 
+# the top of your script.
+# ##################################################
+trap_cleanup() {
+	echo ""
+	# Delete temp files, if any
+	if is_dir "${TMP_DIR}"; then
+		rm -r "${TMP_DIR}"
+	fi
+	die "Exit trapped."
+}
+
+# Safe Exit
+# ##################################################
+# Non destructive exit for when script exits
+# naturally.
+# 
+# Usage: 
+#     Add this function at the end of every script.
+# ##################################################
+safe_exit() {
+	# Delete temp files, if any
+	if is_dir "${TMP_DIR}"; then
+		rm -r "${TMP_DIR}"
+	fi
+	trap - INT TERM EXIT
+	exit
+}
+
+# Set Flags
+# ##################################################
+# Flags which can be overridden by user input.
+# Default values are below
+# ##################################################
+quiet=false
+print_log=false
+verbose=false
+force=false
+strict=false
+debug=false
+args=()
+
+# Set Temp Directory
+# ##################################################
+# Create temp directory with three random numbers 
+# and the process ID in the name.  This directory is
+# removed automatically at exit.
+# ##################################################
+declare -r TMP_DIR="/tmp/${SCRIPT_NAME}.$RANDOM.$RANDOM.$RANDOM.$$"
+(umask 077 && mkdir "${TMP_DIR}") || {
+	die "Could not create temporary directory! Exiting."
+}
+
+# Logging
+# ##################################################
+# Log is only used when the '-l' flag is set.
+#
+# To never save a logfile change variable to 
+# '/dev/null'. Save to Desktop use: 
+#     $HOME/Desktop/${scriptBasename}.log
+#
+# Save to standard user log location use: 
+#     $HOME/Library/Logs/${scriptBasename}.log
+# ##################################################
+declare -r LOG_FILE="$HOME/Library/Logs/${SCRIPT_BASE_NAME}.log"
+
+# Check for Dependencies
+# ##################################################
+# Arrays containing package dependencies needed to 
+# execute this script. The script will fail if 
+# dependencies are not installed.
+# ##################################################
+declare -r DEPENDENCIES=()
+
+main() {
+# ############## Begin Script Here #################
+# ##################################################
+
+	# input "input"
+	echo -n
+	header "header"
+	success "success"
+	notice "notice"
+	info "info"
+	debug "debug"
+	warning "warning"
+	error "error"
+	die "die"
+
+# ##################################################
+# ############### End Script Here ##################
+}
+
+# ########### Begin Options and Usage ##############
+# ##################################################
+
+# Print usage
+# ##################################################
+
+usage() {
+	echo -n "${SCRIPT_NAME} [OPTION]... [FILE]...
+
+This is a script template.  Edit this description to print help to users.
+
+ Options:
+  -u, --username    Username for script
+  -p, --password    User password
+  --force           Skip all user interaction.  Implied 'Yes' to all actions.
+  -q, --quiet       Quiet (no output)
+  -l, --log         Print log to file
+  -s, --strict      Exit script with null variables.  i.e 'set -o nounset'
+  -v, --verbose     Output more information. (Items echoed to 'verbose')
+  -d, --debug       Runs script in BASH debug mode (set -x)
+  -h, --help        Display this help and exit
+      --version     Output version information and exit
+"
+}
+
+# Parse options
+# ##################################################
+# Iterate over options breaking -ab into -a -b when 
+# needed and --foo=bar into --foo bar
+# ##################################################
+
+optstring=h
+unset options
+while (($#)); do
+	case $1 in
+		# If option is of type -ab
+		-[!-]?*)
+			# Loop over each character starting with the second
+			for ((i=1; i < ${#1}; i++)); do
+				c=${1:i:1}
+
+				# Add current char to options
+				options+=("-$c")
+
+				# If option takes a required argument, and it's not the last char make
+				# the rest of the string its argument
+				if [[ $optstring = *"$c:"* && ${1:i+1} ]]; then
+					options+=("${1:i+1}")
+					break
+				fi
+			done
+			;;
+		# If option is of type --foo=bar
+		--?*=*) options+=("${1%%=*}" "${1#*=}") ;;
+		# add --endopts for --
+		--) options+=(--endopts) ;;
+		# Otherwise, nothing special
+		*) options+=("$1") ;;
+	esac
+	shift
+done
+set -- "${options[@]}"
+unset options
+
+# Print help if no arguments were passed.
+# ##################################################
+# Uncomment to force arguments when invoking the 
+# script
+# ##################################################
+# [[ $# -eq 0 ]] && set -- "--help"
+
+# Read the options and set actions
+# ##################################################
+while [[ $1 = -?* ]]; do
+	case $1 in
+		-h|--help) usage >&2; safe_exit ;;
+		--version) echo "$(basename $0) ${VERSION}"; safe_exit ;;
+		-u|--username) shift; username=${1} ;;
+		-p|--password) shift; echo "Enter Pass: "; stty -echo; read PASS; stty echo;
+		  echo ;;
+		-v|--verbose) verbose=true ;;
+		-l|--log) printLog=true ;;
+		-q|--quiet) quiet=true ;;
+		-s|--strict) strict=true;;
+		-d|--debug) debug=true;;
+		--force) force=true ;;
+		--endopts) shift; break ;;
+		*) die "invalid option: '$1'." ;;
+	esac
+	shift
+done
+
+# Store the remaining part as arguments.
+# ##################################################
+args+=("$@")
+
+# ##################################################
+# ############ End Options and Usage ###############
+
+# ##################################################
+# #####        TIME TO RUN THE SCRIPT          #####
+# #####                                        #####
+# #####  You shouldn't need to edit anything   #####
+# #####  beneath this line                     #####
+# #####                                        #####
+# ##################################################
+
+# Trap bad exits with your cleanup function
+# ##################################################
+trap trap_cleanup EXIT INT TERM
+
+# Set IFS to preferred implementation
+# ##################################################
+IFS=$'\n\t'
+
+# Exit on error
+# ##################################################
+# Append '||true' when you run the script if you 
+# expect an error.
+# ##################################################
+set -o errexit
+
+# Run in debug mode, if set
+# ##################################################
+if ${debug}; then
+	set -x 
+fi
+
+# Exit on empty variable if in 'strict' mode
+# ##################################################
+if ${strict}; then 
+	set -o nounset 
+fi
+
+# Pipefail
+# ##################################################
+# Bash will remember & return the highest exitcode 
+# in a chain of pipes. This will catch the error in 
+# case mysqldump fails in `mysqldump |gzip`, for 
+# example.
+# ##################################################
+set -o pipefail
+
+# Check Dependenices
+# ##################################################
+# Invoke the checkDependenices function to test for 
+# Bash packages.  Uncomment if needed.
+# ##################################################
+# checkDependencies
+
+# Run your script
+# ##################################################
+main
+
+# Exit cleanly
+# ##################################################
+safe_exit 
